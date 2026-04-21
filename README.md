@@ -1,8 +1,8 @@
-# 🛡️ GigShield: AI-Powered Parametric Insurance
+# 🛡️ ClaimWire: AI-Powered Parametric Insurance
 
-**Phase 2 Submission ("Protect Your Worker")**
+**Phase 3 Submission ("The Smart Payout Engine")**
 
-GigShield is a revolutionary, week-to-week parametric insurance engine designed specifically to protect food delivery partners and gig workers from unavoidable income loss—with absolutely **zero manual claims required**.
+ClaimWire is a revolutionary, week-to-week parametric insurance engine designed specifically to protect food delivery partners and gig workers from unavoidable income loss—with absolutely **zero manual claims required**.
 
 ---
 
@@ -25,7 +25,7 @@ To create the best User Experience possible, our riders *never file a claim*. We
 When a weather trigger fires, the backend automatically:
 1. Cross-references active policies in the affected zone.
 2. Validates against our **Python Fraud Detection Engine** (Anomaly scoring).
-3. Files a simulated `Parametric_IncomeLoss` FNOL in **Guidewire ClaimCenter**.
+3. Files a simulated `Parametric_IncomeLoss` FNOL in **ClaimWire ClaimCenter**.
 4. Auto-approves the payout and instantly pushes funds via the **Razorpay UPI API**.
 
 All of this is visualized in real-time on our premium **React Admin Dashboard**.
@@ -37,7 +37,7 @@ All of this is visualized in real-time on our premium **React Admin Dashboard**.
 - **AI & Messaging**: Google Gemini 1.5 Pro, Twilio API webhooks
 - **Machine Learning Engine**: Python, FastAPI
 - **Frontend Dashboard**: React, Vite
-- **Simulated APIs**: Guidewire PolicyCenter, Guidewire ClaimCenter, Razorpay API
+- **Simulated APIs**: ClaimWire PolicyCenter, ClaimWire ClaimCenter, Razorpay API
 
 ---
 
@@ -54,7 +54,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### 2. Start the Node.js Orchestrator
-Handles the cron-jobs, Guidewire automation, and webhooks.
+Handles the cron-jobs, ClaimWire automation, and webhooks.
 ```bash
 cd backend
 npm install
@@ -80,8 +80,8 @@ cd backend
 node simulator.js
 ```
 1. Type `"Check price"` in the simulator.
-2. Type `"BUY"` to generate the Guidewire Policy.
+2. Type `"BUY"` to generate the ClaimWire Policy.
 3. Wait up to 60 seconds for the backend `cron` job to detect a simulated storm. Watch the server magically issue the FNOL and Razorpay Payout without user interaction!
 
 ---
-*Built with ❤️ for Phase 2 of the Hackathon.*
+*Built with ❤️ for Phase 3 of the Hackathon.*

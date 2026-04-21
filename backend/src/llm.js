@@ -14,7 +14,7 @@ export async function processIntent(userMessage) {
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
 
         const prompt = `
-        You are an AI assistant for GigShield, a parametric insurance platform for gig workers (food delivery).
+        You are an AI assistant for ClaimWire, a parametric insurance platform for gig workers (food delivery).
         Analyze the following message from a gig worker and determine their INTENT and any extracted ENTITIES.
         
         Valid INTENTS:
@@ -57,5 +57,5 @@ function mockProcessIntent(message) {
     if (lower.includes('claim') || lower.includes('barish') || lower.includes('rain')) {
          return { intent: 'CHECK_CLAIM', mock_reply: "I understand you're facing weather issues. Let me check your active policy and claims." };
     }
-    return { intent: 'HELP', mock_reply: "How can I help you regarding GigShield income protection today?" };
+    return { intent: 'HELP', mock_reply: "How can I help you regarding ClaimWire income protection today?" };
 }

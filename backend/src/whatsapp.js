@@ -1,16 +1,17 @@
 import express from 'express';
 import axios from 'axios';
+import { ClaimWirePCAdapter } from './claimwire.js';
+import { Policy, Claim } from './models.js';
+import { sendWhatsAppNotification } from './twilioService.js';
 import { processIntent } from './llm.js';
-import { GuidewirePCAdapter } from './guidewire.js';
-import { query } from './db.js'; // Ensure we can save things
 
 export const whatsappRouter = express.Router();
 
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || 'gigshield_secret_token';
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || 'claimwire_secret_token';
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
 
-// In-memory state (Use Redis in prod) for conversational flow
+// In-memory state for conversational flow (temp session)
 const userState = {};
 
 whatsappRouter.get('/webhook', (req, res) => {
@@ -30,8 +31,7 @@ whatsappRouter.get('/webhook', (req, res) => {
 
 whatsappRouter.post('/webhook', async (req, res) => {
     try {
-        // Twilio sends data as URL-encoded forms where body has 'From', 'Body', etc.
-        const from = req.body.From; // e.g. "whatsapp:+14155238886"
+        const from = req.body.From; 
         const msg_body = req.body.Body;
 
         if (!from || !msg_body) {
@@ -44,11 +44,9 @@ whatsappRouter.post('/webhook', async (req, res) => {
         const aiResponse = await processIntent(msg_body);
         let replyText = aiResponse.mock_reply || "Hello! We are processing your request.";
         
-        // Logic based on Intent
         switch (aiResponse.intent) {
             case 'CHECK_PRICE':
                 try {
-                    // Mock hitting ML Service for dynamic pricing (Assuming 'Andheri' zone for hackathon demo)
                     const priceRes = await axios.post(`${ML_SERVICE_URL}/api/ml/dynamic-price`, {
                         zone: "Andheri",
                         forecasted_rain_mm: 60.0,
@@ -56,9 +54,8 @@ whatsappRouter.post('/webhook', async (req, res) => {
                     });
                     
                     const premium = priceRes.data.weekly_premium_adjusted;
-                    replyText = `Based on AI predictions for Andheri zone, your weekly GigShield premium is ₹${premium}. Reply "BUY" to activate protection against rain or pollution.`;
+                    replyText = `Based on AI predictions for Andheri zone, your weekly ClaimWire premium is ₹${premium}. Reply "BUY" to activate protection against rain or pollution.`;
                     
-                    // Save to context
                     userState[from] = { pendingPremium: premium, zone: "Andheri" };
                 } catch (err) {
                     console.error("ML pricing fail:", err.message);
@@ -74,23 +71,49 @@ whatsappRouter.post('/webhook', async (req, res) => {
                     break;
                 }
                 
-                // 1. Simulate GW Account Creation
-                const account = await GuidewirePCAdapter.createAccount({ name: "Gig Worker", phone: from });
+                // 1. Simulate CW Account & Policy
+                const account = await ClaimWirePCAdapter.createAccount({ name: "Gig Worker", phone: from });
+                const gwPolicy = await ClaimWirePCAdapter.createWeeklyPolicy(account.accountId, context.pendingPremium);
                 
-                // 2. Simulate GW Policy Bind
-                const policy = await GuidewirePCAdapter.createWeeklyPolicy(account.accountId, context.pendingPremium);
+                // 2. 🍃 PERSIST TO MONGODB
+                const newPolicy = new Policy({
+                    partner_id: from,
+                    policyNumber: gwPolicy.policyNumber,
+                    zone: context.zone,
+                    premium: context.pendingPremium,
+                    periodStart: gwPolicy.periodStart,
+                    periodEnd: gwPolicy.periodEnd,
+                    status: 'ACTIVE'
+                });
+                await newPolicy.save();
+
+                const successMsg = `✅ Policy Activated!\nClaimWire Policy No: ${gwPolicy.policyNumber}\nValid Until: ${new Date(gwPolicy.periodEnd).toLocaleDateString()}.\nYour income is now protected!`;
                 
-                replyText = `✅ Policy Activated!\nGuidewire Policy No: ${policy.policyNumber}\nValid Until: ${new Date(policy.periodEnd).toLocaleDateString()}.\nYour income is now protected against extreme disruptions!`;
+                // Phase 3+: Proactive Confirmation
+                await sendWhatsAppNotification(from, successMsg);
+
+                replyText = successMsg;
                 
-                delete userState[from]; // Clear context
+                delete userState[from]; 
                 break;
             
             case 'CHECK_CLAIM':
-                replyText = `Our system automatically monitors conditions. If your zone triggers an alert (e.g. Heavy Rain), you will receive an automatic payout. If you believe a payout was missed, our support team will contact you.`;
+            case 'CHECK_STATUS':
+            case 'STATUS':
+                // Phase 3: WhatsApp Worker Dashboard
+                const activePolicy = await Policy.findOne({ partner_id: from, status: 'ACTIVE' });
+                const recentClaims = await Claim.find({ partner_id: from }).sort({ createdAt: -1 }).limit(3);
+                
+                if (!activePolicy) {
+                    replyText = "You don't have an active policy. Type 'check price' to protect your earnings!";
+                } else {
+                    const totalPaid = recentClaims.reduce((sum, c) => sum + (c.status === 'PAID' ? c.amount : 0), 0);
+                    replyText = `🛡️ *Your ClaimWire Hub*\n\nStatus: ✅ ACTIVE\nZone: ${activePolicy.zone}\nValid Until: ${new Date(activePolicy.periodEnd).toLocaleDateString()}\n\n💰 Total Protected Earnings Paid: ₹${totalPaid}\nRecent Payouts: ${recentClaims.length > 0 ? recentClaims.map(c => `\n- ₹${c.amount} (${c.triggerType})`).join('') : 'None yet'}`;
+                }
                 break;
             
             default:
-                replyText = aiResponse.mock_reply || "Sorry, I didn't catch that. Try asking about 'price' or 'claim'.";
+                replyText = aiResponse.mock_reply || "Sorry, I didn't catch that. Say 'status' to check your coverage or 'price' for a quote.";
         }
 
         // Reply back directly using Twilio's XML format (TwiML)

@@ -10,7 +10,7 @@ const RIDER_PHONE = '919123456789';
 const WEBHOOK_URL = 'http://localhost:3000/api/whatsapp/webhook';
 
 console.log("====================================================");
-console.log("📱 GIGSHIELD RIDER PHONE SIMULATOR (WhatsApp Mock)");
+console.log("📱 CLAIMWIRE RIDER PHONE SIMULATOR (WhatsApp Mock)");
 console.log("====================================================");
 console.log("Try typing things like:");
 console.log(" - 'I want to check the price for my zone'");

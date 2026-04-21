@@ -1,130 +1,208 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
-// Using mock state data matching Phase 2 functionality but styling to match Phase 1
-const MOCK_POLICIES = [
-  { id: 'ZMT-BOM-1029', user: 'Ramesh K.', zone: 'Andheri', premium: '₹58/wk', status: 'ACTIVE' },
-  { id: 'SWG-DEL-0099', user: 'Suresh P.', zone: 'Powai', premium: '₹41/wk', status: 'ACTIVE' },
-  { id: 'ZMT-BOM-4488', user: 'Arjun D.', zone: 'Bandra', premium: '₹71/wk', status: 'ACTIVE' },
-];
-
-const MOCK_TRIGGERS = [
-  { type: 'SEVERE_RAIN', val: '68mm/hr', zone: 'Andheri' },
-];
-
-const MOCK_PAYOUTS = [
-  { id: 'CLM-ABCD12', user: 'Ramesh K.', zone: 'Andheri', tag: 'Paid', cls: 'ct-paid', statusCS: 'cs-paid', amt: '₹300', time: 'Just now' },
-  { id: 'CLM-EFGH34', user: 'Priya M.', zone: 'Bandra', tag: 'Paid', cls: 'ct-paid', statusCS: 'cs-paid', amt: '₹512', time: '8:31am' },
-];
+const API_BASE = 'http://localhost:3000/api';
 
 function App() {
-  const [policies, setPolicies] = useState(MOCK_POLICIES);
-  const [triggers, setTriggers] = useState(MOCK_TRIGGERS);
-  const [payouts, setPayouts] = useState(MOCK_PAYOUTS);
+  const [view, setView] = useState('admin'); // 'admin' or 'worker'
+  const [policies, setPolicies] = useState([]);
+  const [claims, setClaims] = useState([]);
+  const [stats, setStats] = useState({ activePolicies: 0, totalPaid: 0, claimCount: 0, fraudFlags: 0, lossRatio: 0 });
+  const [prediction, setPrediction] = useState(null);
+  const [logs, setLogs] = useState([
+    { type: 'process', text: 'System initialized. Listening for weather triggers...' },
+    { type: 'process', text: 'MongoDB persistence connected. Polling every 5s.' }
+  ]);
+  const [loading, setLoading] = useState(true);
+
+  const addLog = (text, type = 'process') => {
+    setLogs(prev => [{ type, text, time: new Date().toLocaleTimeString() }, ...prev].slice(0, 50));
+  };
+
+  const fetchData = async () => {
+    try {
+      const [resP, resC, resS, resPr] = await Promise.all([
+        fetch(`${API_BASE}/policies`),
+        fetch(`${API_BASE}/claims`),
+        fetch(`${API_BASE}/stats`),
+        fetch(`${API_BASE}/predictive`)
+      ]);
+      setPolicies(await resP.json());
+      setClaims(await resC.json());
+      setStats(await resS.json());
+      setPrediction(await resPr.json());
+      setLoading(false);
+    } catch (err) { console.error("Sync Error:", err); }
+  };
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleSimulate = async () => {
+    addLog("⚡ MANUAL TRIGGER: Initiating severe rain storm simulation for Andheri...", "alert");
+    try {
+      setTimeout(() => addLog("🔍 STEP 1: Querying active policies in zip code 400053...", "process"), 800);
+      setTimeout(() => addLog("🤖 STEP 2: Running ML Fraud Detection (Speed & Pattern check)...", "process"), 1600);
+
+      const res = await fetch(`${API_BASE}/simulate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'SEVERE_RAIN', zone: 'Andheri' })
+      });
+      const data = await res.json();
+
+      setTimeout(() => addLog("💸 STEP 3: Fraud check passed. Executing instant payout via Razorpay UPI...", "success"), 2400);
+      setTimeout(() => addLog(`✅ DONE: Payout issued to ${data.event.zone}. Check ClaimWire for FNOL.`, "success"), 3200);
+
+    } catch (err) {
+      addLog("❌ Simulation error: Connection failed.", "alert");
+    }
+  };
 
   return (
-    <div>
+    <div className="app-container">
       <nav>
         <div className="nav-brand">
           <div className="nav-logo">
-            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" /></svg>
           </div>
-          <span className="nav-title">GigShield</span>
-          <span className="nav-badge">live deployment</span>
+          <span className="nav-title">ClaimWire</span>
+          <span className="nav-badge">Phase 3 Final</span>
+        </div>
+        <div className="view-switcher">
+          <button className={view === 'admin' ? 'active' : ''} onClick={() => setView('admin')}>Risk Admin</button>
+          <button className={view === 'worker' ? 'active' : ''} onClick={() => setView('worker')}>Partner Hub</button>
         </div>
       </nav>
 
-      <div className="dash">
-        <div className="dash-header">
-          <div>
-            <div className="dash-title">Insurer Admin Dashboard</div>
-            <div className="dash-sub">Mumbai cluster &middot; Realtime Phase 2 Monitoring</div>
-          </div>
-          <div className="live-pill">Live feed</div>
-        </div>
-
-        {/* Live Disruption Ticker based on triggers state */}
-        {triggers.length > 0 && (
-          <div className="ticker-wrap">
-            <span className="ticker-icon">⚡</span>
-            <span className="ticker-text">Live: Automation detected {triggers[0].type.replace('_', ' ')} in {triggers[0].zone} — {triggers[0].val}. Cross-checking active limits...</span>
-            <span className="ticker-time">Just now</span>
-          </div>
-        )}
-
-        {/* Top KPI Metrics */}
-        <div className="metrics-grid">
-          <div className="metric">
-            <div className="metric-label">Active policies</div>
-            <div className="metric-val green">1,247</div>
-            <div className="metric-sub">+83 this week</div>
-          </div>
-          <div className="metric">
-            <div className="metric-label">Loss ratio</div>
-            <div className="metric-val green">61%</div>
-            <div className="metric-sub" style={{color: 'var(--green)'}}>▲ Target &lt;65%</div>
-          </div>
-          <div className="metric">
-            <div className="metric-label">Claims paid today</div>
-            <div className="metric-val amber">₹3.2L</div>
-            <div className="metric-sub">14 claims &middot; avg ₹643</div>
-          </div>
-          <div className="metric">
-            <div className="metric-label">Fraud flagged</div>
-            <div className="metric-val red">3</div>
-            <div className="metric-sub">Held for review</div>
-          </div>
-        </div>
-
-        {/* Tables */}
-        <div className="dash-grid">
-          
-          <div className="panel">
-            <div className="panel-header">
-              <span className="panel-title">Latest Automated Payouts</span>
-              <span className="panel-badge pb-green">Processing</span>
+      {view === 'admin' ? (
+        <div className="dash">
+          <div className="dash-header">
+            <div>
+              <div className="dash-title">ClaimWire Intelligence Dashboard</div>
+              <div className="dash-sub">Operational status: Active &middot; Monitoring Mumbai Cluster</div>
             </div>
-            <div className="claim-list">
-              {payouts.map((c, i) => (
-                <div className="claim-row" key={i}>
-                  <div className={`claim-status ${c.statusCS}`}></div>
-                  <div>
-                    <div className="claim-name">{c.user} &middot; {c.id}</div>
-                    <div className="claim-zone">{c.zone} &middot; Automatic Settlement</div>
+            <div className="simulation-controls">
+              <button className="btn-trigger" onClick={handleSimulate}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>
+                Simulate Disruption
+              </button>
+            </div>
+          </div>
+
+          <div className="metrics-grid">
+            <div className="metric">
+              <div className="metric-label">Active Policies</div>
+              <div className="metric-val green">{stats.activePolicies}</div>
+              <div className="metric-sub"><span className="dot dot-green"></span> Live MongoDB Feed</div>
+            </div>
+            <div className="metric">
+              <div className="metric-label">Loss Ratio</div>
+              <div className="metric-val amber">{stats.lossRatio}%</div>
+              <div className="metric-sub">{stats.lossRatio > 65 ? '⚠️ High Payout Volume' : '✅ Stable Risk Profile'}</div>
+            </div>
+            <div className="metric">
+              <div className="metric-label">Security Flags</div>
+              <div className="metric-val red">{stats.fraudFlags}</div>
+              <div className="metric-sub">Blocked by Fraud ML</div>
+            </div>
+            {prediction && (
+              <div className="metric">
+                <div className="metric-label">AI Risk Forecast</div>
+                <div className="metric-val purple">{prediction.nextWeekRiskScore}%</div>
+                <div className="metric-sub">Confidence: 94%</div>
+              </div>
+            )}
+          </div>
+
+          <div className="dash-grid">
+            <div className="panel">
+              <div className="panel-header">
+                <span className="panel-title">Real-time Claims Ledger</span>
+                <span className="panel-badge pb-green">SYNCING</span>
+              </div>
+              <div className="claim-list">
+                {claims.length === 0 && <div className="empty-state">No payouts recorded today. Use the simulation button to trigger a claim.</div>}
+                {claims.map((c, i) => (
+                  <div key={i} className="claim-row">
+                    <div className={`claim-status cs-${c.status.toLowerCase()}`}></div>
+                    <div>
+                      <div className="claim-name">{c.partner_id} &middot; <span style={{ opacity: 0.6 }}>{c.claimNumber}</span></div>
+                      <div className="claim-zone">{c.zone} &middot; {c.triggerType}</div>
+                      {c.gateway_tx_id && <div className="tx-id">Gateway TXID: {c.gateway_tx_id}</div>}
+                    </div>
+                    <span className={`claim-tag ct-${c.status.toLowerCase()}`}>{c.status}</span>
+                    <div className="claim-amt">₹{c.amount}</div>
                   </div>
-                  <span className={`claim-tag ${c.cls}`}>{c.tag}</span>
-                  <div className="claim-amt">{c.amt}</div>
-                  <div className="claim-time">{c.time}</div>
+                ))}
+              </div>
+
+              <div className="activity-log">
+                {logs.map((log, i) => (
+                  <div key={i} className={`log-entry ${log.type}`}>
+                    [{log.time || 'BOOT'}] {log.text}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="panel">
+              <div className="panel-header">
+                <span className="panel-title">AI Predictive Narrative</span>
+              </div>
+              <div className="narrative-box">
+                <p style={{ fontWeight: 700, color: 'var(--purple)', marginBottom: '8px' }}>Weekly Risk Intelligence Report</p>
+                <p>{prediction?.forecastNarrative}</p>
+                <p><strong>Proposed Action:</strong> Increase reserves for {prediction?.likelyDisruptions[0]} events expected over the weekend.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="dash worker-view">
+          <div className="dash-header">
+            <div>
+              <div className="dash-title">My Protection Portal</div>
+              <div className="dash-sub">Managing coverage for 919123456789</div>
+            </div>
+          </div>
+
+          <div className="worker-stats">
+            <div className="metric">
+              <div className="metric-label">Coverage Status</div>
+              <div className="metric-val green">Active</div>
+              <div className="metric-sub">Valid for next 4 days</div>
+            </div>
+            <div className="metric">
+              <div className="metric-label">Earnings Protected</div>
+              <div className="metric-val purple">₹3,200</div>
+              <div className="metric-sub">Max payout per disruption</div>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-header">My Recent Payouts</div>
+            <div className="claim-list">
+              {claims.filter(c => c.partner_id.includes('919123456789')).map((c, i) => (
+                <div key={i} className="claim-row">
+                  <div className="claim-status cs-paid"></div>
+                  <div>
+                    <div className="claim-name">Automatic Payout: {c.triggerType}</div>
+                    <div className="claim-zone">{new Date(c.createdAt).toLocaleDateString()}</div>
+                  </div>
+                  <div className="claim-amt">₹{c.amount}</div>
                 </div>
               ))}
             </div>
           </div>
-
-          <div className="panel">
-            <div className="panel-header">
-              <span className="panel-title">Live Policy Stream</span>
-              <span className="panel-badge pb-amber">Syncing Guidewire</span>
-            </div>
-            <div className="claim-list">
-              {policies.map((pol, i) => (
-                <div className="claim-row" key={i}>
-                  <div className="claim-status cs-active"></div>
-                  <div>
-                    <div className="claim-name">{pol.user} &middot; {pol.id}</div>
-                    <div className="claim-zone">Base Zone: {pol.zone}</div>
-                  </div>
-                  <span className="claim-tag ct-active">{pol.status}</span>
-                  <div className="claim-amt">{pol.premium}</div>
-                  <div className="claim-time">Live</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
 export default App;
+

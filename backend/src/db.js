@@ -1,15 +1,19 @@
-import pkg from 'pg';
-const { Pool } = pkg;
+import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-export const pool = new Pool({
-    user: process.env.DB_USER || 'postgres',
-    host: process.env.DB_HOST || 'localhost',
-    database: process.env.DB_NAME || 'gigshield',
-    password: process.env.DB_PASSWORD || 'password',
-    port: process.env.DB_PORT || 5432,
-});
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/claimwire';
 
-export const query = (text, params) => pool.query(text, params);
+export const connectDB = async () => {
+    try {
+        await mongoose.connect(MONGO_URI);
+        console.log('[🍃] MongoDB Connected Successfully');
+    } catch (err) {
+        console.error('[❌] MongoDB Connection Error:', err.message);
+        process.exit(1);
+    }
+};
+
+// No need for a separate query export with Mongoose, 
+// we will use models instead.
